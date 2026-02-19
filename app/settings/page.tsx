@@ -56,6 +56,7 @@ const LOCALSTORAGE_KEYS = [
   "Student.customGradeBounds",
   "Student.calculateGrades",
   "Student.dontShowGradeCalcWarning",
+  "Student.trivoryApiKey",
   "theme-color",
   "tempUnit",
   "celsius",
@@ -75,6 +76,8 @@ export default function SettingsPage() {
   const [tempUnit, setTempUnit] = useState<"fahrenheit" | "celsius" | "kelvin">(
     "fahrenheit",
   );
+  const [trivoryApiKey, setTrivoryApiKey] = useState("");
+  const [trivoryApiKeySaved, setTrivoryApiKeySaved] = useState(false);
   const [copiedItem, setCopiedItem] = useState<string | null>(null);
 
   const copyToClipboard = useCallback(async (text: string, label: string) => {
@@ -130,6 +133,7 @@ export default function SettingsPage() {
     } else {
       setTempUnit("fahrenheit");
     }
+    setTrivoryApiKey(localStorage.getItem("Student.trivoryApiKey") || "");
     setIsLoaded(true);
   }, []);
 
@@ -217,6 +221,7 @@ export default function SettingsPage() {
     localStorage.removeItem("umami.disabled");
     localStorage.removeItem("celsius");
     localStorage.removeItem("tempUnit");
+    localStorage.removeItem("Student.trivoryApiKey");
     const scale = loadCustomGPAScale();
     setEntries(ORDER.map((letter) => ({ letter, value: scale[letter] })));
     setBounds(loadCustomGradeBounds());
@@ -224,6 +229,7 @@ export default function SettingsPage() {
     setHideGradeCalcWarning(false);
     setDontTrackMe(false);
     setTempUnit("fahrenheit");
+    setTrivoryApiKey("");
     setSavedMsg("Reset to default");
     setTimeout(() => setSavedMsg(null), 1500);
   };
@@ -465,6 +471,67 @@ export default function SettingsPage() {
                   <SelectItem value="kelvin">Kelvin (K)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section className="space-y-4">
+        <header>
+          <h2 className="text-lg font-medium">Integrations</h2>
+          <p className="text-xs text-zinc-500">
+            Connect third-party services to enhance your calendar with class
+            times, after-school events, and announcements.
+          </p>
+        </header>
+        <div className="pl-5 pt-1 space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium block">Trivory API Key</label>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Enter your Trivory API key to sync class time information,
+              after-school events, and announcements to the calendar. You can
+              find your API key in your Trivory account settings.
+            </p>
+            <div className="flex gap-2 items-center">
+              <Input
+                type="password"
+                placeholder="Paste your Trivory API key…"
+                value={trivoryApiKey}
+                onChange={(e) => {
+                  setTrivoryApiKey(e.target.value);
+                  setTrivoryApiKeySaved(false);
+                }}
+                className="max-w-sm"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (trivoryApiKey.trim()) {
+                    localStorage.setItem(
+                      "Student.trivoryApiKey",
+                      trivoryApiKey.trim(),
+                    );
+                  } else {
+                    localStorage.removeItem("Student.trivoryApiKey");
+                  }
+                  setTrivoryApiKeySaved(true);
+                  setTimeout(() => setTrivoryApiKeySaved(false), 2000);
+                }}
+              >
+                {trivoryApiKeySaved ? "Saved" : "Save"}
+              </Button>
+              {trivoryApiKey && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setTrivoryApiKey("");
+                    localStorage.removeItem("Student.trivoryApiKey");
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
             </div>
           </div>
         </div>

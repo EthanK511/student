@@ -10,6 +10,8 @@ import {
   Cloud,
   Droplets,
   Wind,
+  Clock,
+  Megaphone,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +56,38 @@ interface ParsedAssignment {
   course: string;
   assignment: string;
   score: string;
+}
+
+interface TrivoryEvent {
+  id?: string | number;
+  title?: string;
+  name?: string;
+  start_date?: string;
+  end_date?: string;
+  start_time?: string;
+  end_time?: string;
+  date?: string;
+  type?: string;
+  description?: string;
+  location?: string;
+  is_class?: boolean;
+  course?: string;
+  teacher?: string;
+}
+
+interface TrivoryAnnouncement {
+  id?: string | number;
+  title?: string;
+  body?: string;
+  content?: string;
+  created_at?: string;
+  date?: string;
+  author?: string;
+}
+
+interface TrivoryData {
+  events: TrivoryEvent[];
+  announcements: TrivoryAnnouncement[];
 }
 
 interface WeatherData {
@@ -202,6 +236,100 @@ const EventCard = ({
   return null;
 };
 
+const getTrivoryEventDate = (event: TrivoryEvent): string | null => {
+  return event.start_date || event.date || null;
+};
+
+const TrivoryEventCard = ({ event }: { event: TrivoryEvent }) => {
+  const title = event.title || event.name || "Untitled Event";
+  const isClass = event.is_class || event.type === "class";
+
+  return (
+    <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+      <Clock className="size-4 text-blue-600 dark:text-blue-400" />
+      <AlertTitle className="flex items-center gap-2">
+        {title}
+        {isClass && (
+          <Badge
+            variant="secondary"
+            className="ml-auto text-xs bg-blue-100 dark:bg-blue-900"
+          >
+            Class
+          </Badge>
+        )}
+        {!isClass && event.type && (
+          <Badge
+            variant="secondary"
+            className="ml-auto text-xs bg-blue-100 dark:bg-blue-900"
+          >
+            {event.type}
+          </Badge>
+        )}
+      </AlertTitle>
+      <AlertDescription>
+        <div className="space-y-1">
+          {(event.start_time || event.end_time) && (
+            <div className="text-xs text-muted-foreground">
+              {event.start_time}
+              {event.end_time ? ` – ${event.end_time}` : ""}
+            </div>
+          )}
+          {event.course && (
+            <div className="text-xs text-muted-foreground">
+              Course: {event.course}
+            </div>
+          )}
+          {event.teacher && (
+            <div className="text-xs text-muted-foreground">
+              Teacher: {event.teacher}
+            </div>
+          )}
+          {event.location && (
+            <div className="text-xs text-muted-foreground">
+              Location: {event.location}
+            </div>
+          )}
+          {event.description && (
+            <div className="text-xs text-muted-foreground whitespace-pre-wrap">
+              {event.description}
+            </div>
+          )}
+        </div>
+      </AlertDescription>
+    </Alert>
+  );
+};
+
+const TrivoryAnnouncementCard = ({
+  announcement,
+}: {
+  announcement: TrivoryAnnouncement;
+}) => {
+  const title = announcement.title || "Announcement";
+  const body = announcement.body || announcement.content || "";
+
+  return (
+    <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+      <Megaphone className="size-4 text-amber-600 dark:text-amber-400" />
+      <AlertTitle>{title}</AlertTitle>
+      {(body || announcement.author) && (
+        <AlertDescription>
+          <div className="space-y-1">
+            {body && (
+              <div className="text-sm whitespace-pre-wrap">{body}</div>
+            )}
+            {announcement.author && (
+              <div className="text-xs text-muted-foreground">
+                — {announcement.author}
+              </div>
+            )}
+          </div>
+        </AlertDescription>
+      )}
+    </Alert>
+  );
+};
+
 export default function SchoolCalendarPage() {
   const router = useRouter();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -214,6 +342,8 @@ export default function SchoolCalendarPage() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [tempUnit, setTempUnit] = useState<TempUnit>(() => getTempUnit());
+  const [trivoryData, setTrivoryData] = useState<TrivoryData | null>(null);
+  const [trivoryLoading, setTrivoryLoading] = useState(false);
 
   const fetchCalendar = useCallback(
     async (requestDate?: Date) => {
@@ -282,10 +412,43 @@ export default function SchoolCalendarPage() {
     }
   }, []);
 
+  const fetchTrivory = useCallback(async (requestDate?: Date) => {
+    const apiKey = localStorage.getItem("Student.trivoryApiKey");
+    if (!apiKey) return;
+
+    setTrivoryLoading(true);
+    try {
+      const body: Record<string, string> = { api_key: apiKey };
+      if (requestDate) {
+        const year = requestDate.getFullYear();
+        const month = String(requestDate.getMonth() + 1).padStart(2, "0");
+        body.start_date = `${year}-${month}-01`;
+        const lastDay = new Date(year, requestDate.getMonth() + 1, 0).getDate();
+        body.end_date = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
+      }
+      const res = await fetch("/api/trivory/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        console.warn("Trivory fetch failed:", res.status);
+        return;
+      }
+      const data: TrivoryData = await res.json();
+      setTrivoryData(data);
+    } catch (err) {
+      console.warn("Trivory fetch error:", err);
+    } finally {
+      setTrivoryLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCalendar();
     fetchWeather();
-  }, [fetchCalendar, fetchWeather]);
+    fetchTrivory(new Date());
+  }, [fetchCalendar, fetchWeather, fetchTrivory]);
 
   const handleMonthChange = useCallback(
     (newMonth: Date) => {
@@ -296,8 +459,9 @@ export default function SchoolCalendarPage() {
         1,
       );
       fetchCalendar(firstOfMonth);
+      fetchTrivory(firstOfMonth);
     },
-    [fetchCalendar],
+    [fetchCalendar, fetchTrivory],
   );
 
   const handlePresetDate = useCallback(
@@ -333,6 +497,26 @@ export default function SchoolCalendarPage() {
       return eventDate.toISOString().split("T")[0] === selectedDateStr;
     });
   }, [selectedDate, events]);
+
+  const selectedDateTrivoryEvents = useMemo(() => {
+    if (!selectedDate || !trivoryData) return [];
+    const selectedDateStr = selectedDate.toISOString().split("T")[0];
+    return trivoryData.events.filter((event) => {
+      const dateStr = getTrivoryEventDate(event);
+      if (!dateStr) return false;
+      return dateStr.split("T")[0] === selectedDateStr;
+    });
+  }, [selectedDate, trivoryData]);
+
+  const selectedDateTrivoryAnnouncements = useMemo(() => {
+    if (!selectedDate || !trivoryData) return [];
+    const selectedDateStr = selectedDate.toISOString().split("T")[0];
+    return trivoryData.announcements.filter((ann) => {
+      const dateStr = ann.created_at || ann.date;
+      if (!dateStr) return false;
+      return dateStr.split("T")[0] === selectedDateStr;
+    });
+  }, [selectedDate, trivoryData]);
 
   if (isLoading) {
     return (
@@ -412,7 +596,9 @@ export default function SchoolCalendarPage() {
             )}
           </div>
 
-          {selectedDateEvents.length === 0 ? (
+          {selectedDateEvents.length === 0 &&
+          selectedDateTrivoryEvents.length === 0 &&
+          selectedDateTrivoryAnnouncements.length === 0 ? (
             <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
               <p>No events for this day</p>
             </div>
@@ -420,7 +606,7 @@ export default function SchoolCalendarPage() {
             <div className="space-y-3">
               {selectedDateEvents.map((event, idx) => (
                 <EventCard
-                  key={idx}
+                  key={`synergy-${idx}`}
                   event={event}
                   parsed={
                     event._DayType === "Assignment"
@@ -429,6 +615,17 @@ export default function SchoolCalendarPage() {
                   }
                 />
               ))}
+              {!trivoryLoading &&
+                selectedDateTrivoryEvents.map((event, idx) => (
+                  <TrivoryEventCard key={`trivory-event-${idx}`} event={event} />
+                ))}
+              {!trivoryLoading &&
+                selectedDateTrivoryAnnouncements.map((ann, idx) => (
+                  <TrivoryAnnouncementCard
+                    key={`trivory-ann-${idx}`}
+                    announcement={ann}
+                  />
+                ))}
             </div>
           )}
         </div>
